@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPTV Server Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+    h1  { font-size: 1.6rem; color: #7dd3fc; margin-bottom: 0.4rem; }
+    p.sub { color: #64748b; margin-bottom: 2rem; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .tab { background: #1e2535; border: none; color: #94a3b8; border-radius: 8px; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.9rem; transition: background .15s; }
+    .tab.active { background: #0369a1; color: #fff; }
+    .tab:hover:not(.active) { background: #263044; }
+    .panel { display: none; } .panel.active { display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: #1e2535; border-radius: 10px; padding: 1.4rem; }
+    .card .val { font-size: 2rem; font-weight: 700; color: #38bdf8; }
+    .card .val.green { color: #4ade80; } .card .val.red { color: #f87171; } .card .val.yellow { color: #fbbf24; }
+    .card .lbl { font-size: 0.8rem; color: #94a3b8; margin-top: 0.3rem; }
+    .section { background: #1e2535; border-radius: 10px; padding: 1.4rem; margin-bottom: 1.5rem; }
+    .section h2 { font-size: 1rem; color: #7dd3fc; margin-bottom: 1rem; }
+    a { color: #38bdf8; text-decoration: none; } a:hover { text-decoration: underline; }
+    .links { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+    .btn { background: #0369a1; color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; transition: background .15s; }
+    .btn:hover { background: #0284c7; }
+    .btn.purple { background: #7c3aed; } .btn.purple:hover { background: #6d28d9; }
+    .btn.green  { background: #059669; } .btn.green:hover  { background: #047857; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    pre { background: #0f1117; padding: 1rem; border-radius: 6px; font-size: 0.78rem; overflow-x: auto; color: #94a3b8; margin-top: 0.8rem; max-height: 320px; overflow-y: auto; }
+    #msg,#gmsg { min-height: 1.4rem; margin-top: 0.6rem; font-size: 0.9rem; }
+    .ok  { color: #4ade80; } .err { color: #f87171; } .info { color: #fbbf24; }
+    .source-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 0.8rem; }
+    .source-table th { text-align: left; color: #7dd3fc; padding: 0.4rem 0.6rem; border-bottom: 1px solid #263044; }
+    .source-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #1a2133; }
+    .source-table tr:hover td { background: #1a2133; }
+    .badge { display: inline-block; border-radius: 4px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 600; }
+    .badge.ok  { background: #064e3b; color: #4ade80; }
+    .badge.err { background: #450a0a; color: #f87171; }
+    .progress-bar { background: #0f1117; border-radius: 6px; height: 10px; overflow: hidden; margin-top: 0.5rem; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #0369a1, #38bdf8); transition: width .4s; border-radius: 6px; }
+    #spinnerGH { display:none; color:#fbbf24; margin-left:.5rem; font-size:.85rem; }
+  </style>
+</head>
+<body>
+  <h1>📡 IPTV Server Dashboard</h1>
+  <p class="sub" id="updated">Loading stats…</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('original')">🏠 Original Source</button>
+    <button class="tab" onclick="switchTab('github')">🐙 GitHub Sources</button>
+    <button class="tab" onclick="switchTab('player')">📺 TV Player</button>
+  </div>
+
+  <!-- ── Original panel ── -->
+  <div class="panel active" id="panel-original">
+    <div class="grid">
+      <div class="card"><div class="val green" id="active">—</div><div class="lbl">Active Channels</div></div>
+      <div class="card"><div class="val red"   id="dead">—</div><div class="lbl">Dead Channels</div></div>
+      <div class="card"><div class="val"        id="elapsed">—</div><div class="lbl">Last Update (sec)</div></div>
+      <div class="card"><div class="val"        id="net">—</div><div class="lbl">Net Change</div></div>
+    </div>
+
+    <div class="section">
+      <h2>📂 Playlist Links</h2>
+      <div class="links">
+        <a href="/index.m3u">🎬 Active Channels (index.m3u)</a>
+        <a href="/dead.m3u">💀 Dead Channels (dead.m3u)</a>
+        <a href="/playlist.m3u">🎵 Music + Podcasts (playlist.m3u)</a>
+        <a href="/iptv-org.m3u">🌍 International (iptv-org.m3u)</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⚙️ Actions</h2>
+      <button class="btn" onclick="trigger('update')">🔄 Trigger Channel Update</button>
+      <button class="btn purple" onclick="trigger('generate-playlist')">🎙️ Regenerate Podcast Playlist</button>
+      <div id="msg"></div>
+    </div>
+
+    <div class="section">
+      <h2>📊 Full Report</h2>
+      <pre id="report">Loading…</pre>
+    </div>
+  </div>
+
+  <!-- ── GitHub panel ── -->
+  <div class="panel" id="panel-github">
+    <div class="grid">
+      <div class="card"><div class="val yellow" id="g-repos">—</div><div class="lbl">GitHub Repos</div></div>
+      <div class="card"><div class="val"         id="g-fetched">—</div><div class="lbl">Channels Fetched</div></div>
+      <div class="card"><div class="val"         id="g-unique">—</div><div class="lbl">Unique URLs</div></div>
+      <div class="card"><div class="val green"   id="g-active">—</div><div class="lbl">Working Streams</div></div>
+      <div class="card"><div class="val red"     id="g-dead">—</div><div class="lbl">Dead Streams</div></div>
+      <div class="card"><div class="val yellow"  id="g-ratio">—</div><div class="lbl">Active Ratio</div></div>
+    </div>
+
+    <div class="section">
+      <h2>📂 GitHub Playlist Links</h2>
+      <div class="links">
+        <a href="/github.m3u">✅ Working GitHub Channels (github.m3u)</a>
+        <a href="/github-dead.m3u">💀 Dead GitHub Channels (github-dead.m3u)</a>
+        <a href="/api/github-sources">🗂️ Source Registry (JSON)</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>⚙️ Actions</h2>
+      <button class="btn green" id="btnGH" onclick="triggerGitHub()">🐙 Fetch All GitHub M3U Repos + Check Streams</button>
+      <span id="spinnerGH">⏳ Running… (this takes a few minutes)</span>
+      <div id="gmsg"></div>
+      <div class="progress-bar" id="ghProgressBar" style="display:none">
+        <div class="progress-fill" id="ghProgressFill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📋 Source Status (last run)</h2>
+      <div id="sourceTableWrap"><p style="color:#64748b;font-size:.85rem">Run a fetch to see per-repo results.</p></div>
+    </div>
+
+    <div class="section">
+      <h2>📊 Full GitHub Report</h2>
+      <pre id="greport">No report yet. Click the button above to fetch all GitHub M3U repos.</pre>
+    </div>
+  </div>
+
+  <!-- ── Player panel ── -->
+  <div class="panel" id="panel-player">
+    <div class="section">
+      <h2 style="margin-bottom:.5rem">📺 Watch TV</h2>
+      <a href="/tv.html" style="display:inline-block;background:#0369a1;color:#fff;border-radius:8px;padding:.6rem 1.4rem;font-size:1rem;font-weight:600;text-decoration:none">▶ Open TV Player</a>
+    </div>
+  </div>
+
+  <script>
+    // ── Tab switching ─────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['original','github','player'][i] === name));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + name).classList.add('active');
+      if (name === 'github') loadGitHub();
+    }
+
+    // ── Original stats ────────────────────────────────────────────────────────
+    async function load() {
+      try {
+        const r = await fetch('/api/stats');
+        const d = await r.json();
+        if (d.message) { document.getElementById('report').textContent = d.message; document.getElementById('updated').textContent = d.message; return; }
+        document.getElementById('active').textContent  = d.after?.active  ?? '—';
+        document.getElementById('dead').textContent    = d.after?.dead    ?? '—';
+        document.getElementById('elapsed').textContent = d.elapsedSeconds ?? '—';
+        const nc = d.netChange;
+        document.getElementById('net').textContent = nc != null ? (nc >= 0 ? '+' : '') + nc : '—';
+        document.getElementById('updated').textContent = 'Last updated: ' + (d.updatedAt ?? 'never');
+        document.getElementById('report').textContent  = JSON.stringify(d, null, 2);
+      } catch(e) { document.getElementById('report').textContent = 'Failed to load stats.'; }
+    }
+
+    async function trigger(action) {
+      const msg = document.getElementById('msg');
+      msg.className = 'info'; msg.textContent = `Starting ${action}…`;
+      try {
+        const r = await fetch(`/api/${action}`, { method: 'POST' });
+        const d = await r.json();
+        msg.className = 'ok'; msg.textContent = d.message || 'Started.';
+        setTimeout(load, 3000);
+      } catch(e) { msg.className = 'err'; msg.textContent = 'Request failed.'; }
+    }
+
+    // ── GitHub stats ─────────────────────────────────────────────────────────
+    async function loadGitHub() {
+      try {
+        const r = await fetch('/api/github-stats');
+        const d = await r.json();
+        if (d.message) { document.getElementById('greport').textContent = d.message; return; }
+        renderGitHub(d);
+      } catch(e) { document.getElementById('greport').textContent = 'Failed to load GitHub stats.'; }
+    }
+
+    function renderGitHub(d) {
+      document.getElementById('g-repos').textContent   = d.sources?.total   ?? '—';
+      document.getElementById('g-fetched').textContent = d.channels?.fetched ?? '—';
+      document.getElementById('g-unique').textContent  = d.channels?.unique  ?? '—';
+      document.getElementById('g-active').textContent  = d.channels?.active  ?? '—';
+      document.getElementById('g-dead').textContent    = d.channels?.dead    ?? '—';
+      document.getElementById('g-ratio').textContent   = d.channels?.activeRatio ?? '—';
+      document.getElementById('updated').textContent   = 'GitHub last fetched: ' + (d.updatedAt ?? 'never');
+      document.getElementById('greport').textContent   = JSON.stringify(d, null, 2);
+
+      // Source table
+      const detail = d.sources?.detail || [];
+      if (detail.length) {
+        let html = '<table class="source-table"><thead><tr><th>Repo / Label</th><th>Channels</th><th>Status</th></tr></thead><tbody>';
+        for (const s of detail) {
+          const badge = s.error
+            ? `<span class="badge err">❌ ${escHtml(s.error.slice(0,40))}</span>`
+            : `<span class="badge ok">✅ ${s.count} channels</span>`;
+          html += `<tr><td><a href="https://github.com/${escHtml(s.repo)}" target="_blank">${escHtml(s.label)}</a></td><td>${s.count}</td><td>${badge}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        document.getElementById('sourceTableWrap').innerHTML = html;
+      }
+    }
+
+    let ghRunning = false;
+    async function triggerGitHub() {
+      if (ghRunning) return;
+      ghRunning = true;
+      const btn = document.getElementById('btnGH');
+      const spin = document.getElementById('spinnerGH');
+      const msg = document.getElementById('gmsg');
+      const bar = document.getElementById('ghProgressBar');
+      const fill = document.getElementById('ghProgressFill');
+      btn.disabled = true; spin.style.display = 'inline'; bar.style.display = 'block'; fill.style.width = '5%';
+      msg.className = 'info'; msg.textContent = 'Fetching all GitHub M3U sources…';
+
+      try {
+        const r = await fetch('/api/github-fetch', { method: 'POST' });
+        const d = await r.json();
+        msg.textContent = d.message;
+        // Animate the bar while waiting
+        let w = 5;
+        const tick = setInterval(() => { w = Math.min(w + 1.5, 90); fill.style.width = w + '%'; }, 3000);
+        // Poll for completion
+        const poll = setInterval(async () => {
+          try {
+            const sr = await fetch('/api/github-stats');
+            const sd = await sr.json();
+            if (!sd.message) {
+              clearInterval(poll); clearInterval(tick);
+              fill.style.width = '100%';
+              setTimeout(() => { bar.style.display='none'; fill.style.width='0%'; }, 1000);
+              msg.className = 'ok'; msg.textContent = `Done! ${sd.channels?.active ?? '?'} working streams found.`;
+              renderGitHub(sd);
+              btn.disabled = false; spin.style.display = 'none'; ghRunning = false;
+            }
+          } catch {}
+        }, 8000);
+      } catch(e) {
+        msg.className = 'err'; msg.textContent = 'Request failed.';
+        btn.disabled = false; spin.style.display = 'none'; ghRunning = false;
+      }
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    load();
+    setInterval(load, 30000);
+  </script>
+</body>
+</html>
